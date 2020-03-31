@@ -111,7 +111,6 @@ class MinecraftJP {
     public function getRefreshToken() {
         if (empty($this->refreshToken)) {
             $this->refreshToken = $this->sessionStorage->read('refresh_token');
-            return $this->refreshToken;
         }
         return $this->refreshToken;
     }
@@ -161,8 +160,9 @@ class MinecraftJP {
             'scope' => 'openid profile',
         ), $options);
 
-        if (isset($options['scope']) && is_array($options['scope'])) {
-            $options['scope'] = join(' ', $options['scope']);
+        $_scope = $options['scope'];
+        if (isset($options['scope']) && is_array($_scope)) {
+            $options['scope'] = join(' ', $_scope);
         }
 
         // Generate nonce
@@ -176,7 +176,7 @@ class MinecraftJP {
         return $this->getUrl('oauth', 'authorize', array(
             'client_id' => $this->getClientId(),
             'response_type' => 'code',
-            'scope' => $options['scope'],
+            'scope' => $_scope,
             'redirect_uri' => isset($options['redirect_uri']) ? $options['redirect_uri'] : $this->redirectUri,
             'nonce' => $nonce,
         ));
@@ -221,12 +221,13 @@ class MinecraftJP {
      */
     protected function exchangeToken() {
         $result = $this->requestAccessToken();
-        if ($result && !empty($result['access_token'])) {
-            $this->accessToken = $result['access_token'];
-            $this->sessionStorage->write('access_token', $result['access_token']);
-            if (!empty($result['refresh_token'])) {
-                $this->refreshToken = $result['refresh_token'];
-                $this->sessionStorage->write('refresh_token', $result['refresh_token']);
+        $token = $result['access_token'];
+        if ($result && !empty($token)) {
+            $this->accessToken = $token;
+            $this->sessionStorage->write('access_token', $token);
+            if (!empty($token)) {
+                $this->refreshToken = $token;
+                $this->sessionStorage->write('refresh_token', $token);
             }
             if (!empty($result['id_token'])) {
                 $this->validateIdToken($result['id_token']);
@@ -450,14 +451,15 @@ class MinecraftJP {
 
         $signingInput = implode('.', array($segments[0], $segments[1]));
         $kid = isset($header['kid']) ? $header['kid'] : null;
-        switch ($header['alg']) {
+        $alg = $header['alg'];
+        switch ($alg) {
             case 'RS256':
             case 'RS384':
             case 'RS512':
                 // 署名検証用に公開鍵を取得する
                 $publicKey = $this->getPublicKey($kid);
 
-                $algo = 'sha' . substr($header['alg'], 2);
+                $algo = 'sha' . substr($alg, 2);
                 if (openssl_verify($signingInput, $signature, $publicKey, $algo) != 1) {
                     openssl_free_key($publicKey);
                     throw new InvalidIdTokenException('Signature Mismatch');
@@ -465,7 +467,7 @@ class MinecraftJP {
                 openssl_free_key($publicKey);
                 break;
             default:
-                throw new InvalidIdTokenException('Unsupported Algorithm: ' . $header['alg']);
+                throw new InvalidIdTokenException('Unsupported Algorithm: ' . $alg);
         }
 
         // Check Issuer
